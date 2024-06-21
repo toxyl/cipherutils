@@ -100,14 +100,36 @@ func Encrypt(plaintext, key string) (string, error) {
 	return base64.StdEncoding.EncodeToString(encrypted), nil
 }
 
+// EncryptBytes encrypts the given bytes using AES-GCM encryption with the provided key.
+// It returns the encrypted bytes and any error encountered.
+//
+// The provided key undergoes scrambling using keys.WeakKeyScrambler to ensure it is 32 bytes long,
+// which is the maximum allowed length for AES-GCM encryption. This process enhances security by converting
+// potentially weak passwords into a stronger key format. The scrambled key is stored internally and
+// used for encryption and decryption operations within this package.
+//
+// Note: The input key is not directly usable with other AES-GCM implementations or tools,
+// as it undergoes specific scrambling tailored for this package's usage.
+func EncryptBytes(bytes []byte, key string) ([]byte, error) {
+	cipher, err := newKeyCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	encrypted, err := cipher.encrypt(bytes)
+	if err != nil {
+		return nil, err
+	}
+	return encrypted, nil
+}
+
 // Decrypt decrypts the given base64-encoded encrypted text using AES-GCM decryption with the provided key.
 // It returns the decrypted plaintext and any error encountered.
-func Decrypt(encryptedText, key string) (string, error) {
+func Decrypt(text, key string) (string, error) {
 	cipher, err := newKeyCipher(key)
 	if err != nil {
 		return "", err
 	}
-	encryptedData, err := base64.StdEncoding.DecodeString(encryptedText)
+	encryptedData, err := base64.StdEncoding.DecodeString(text)
 	if err != nil {
 		return "", err
 	}
@@ -116,6 +138,20 @@ func Decrypt(encryptedText, key string) (string, error) {
 		return "", err
 	}
 	return string(decrypted), nil
+}
+
+// DecryptBytes decrypts the given encrypted bytes using AES-GCM decryption with the provided key.
+// It returns the decrypted bytes and any error encountered.
+func DecryptBytes(bytes []byte, key string) ([]byte, error) {
+	cipher, err := newKeyCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	decrypted, err := cipher.decrypt(bytes)
+	if err != nil {
+		return nil, err
+	}
+	return decrypted, nil
 }
 
 // EncryptFile encrypts the file located at 'path' using AES-GCM encryption with the provided key.
@@ -147,6 +183,31 @@ func EncryptFile(path, key string) error {
 	return nil
 }
 
+// EncryptToFile encrypts the given `bytes` using AES-GCM encryption with the provided key and writes the result to 'path'.
+// It returns an error if the file doesn't exist or if any encryption operation fails.
+//
+// The provided key undergoes scrambling using keys.WeakKeyScrambler to ensure it is 32 bytes long,
+// which is the maximum allowed length for AES-GCM encryption. This process enhances security by converting
+// potentially weak passwords into a stronger key format. The scrambled key is stored internally and
+// used for encryption and decryption operations within this package.
+//
+// Note: The input key is not directly usable with other AES-GCM implementations or tools,
+// as it undergoes specific scrambling tailored for this package's usage.
+func EncryptToFile(bytes []byte, path, key string) error {
+	cipher, err := newKeyCipher(key)
+	if err != nil {
+		return err
+	}
+	encrypted, err := cipher.encrypt(bytes)
+	if err != nil {
+		return err
+	}
+	if err := flo.File(path).StoreBytes(encrypted); err != nil {
+		return err
+	}
+	return nil
+}
+
 // DecryptFile decrypts the file located at 'path' using AES-GCM decryption with the provided key.
 // It returns an error if the file doesn't exist or if any decryption operation fails.
 func DecryptFile(path, key string) error {
@@ -166,4 +227,18 @@ func DecryptFile(path, key string) error {
 		return err
 	}
 	return nil
+}
+
+// DecryptFromFile decrypts the file located at 'path' using AES-GCM decryption with the provided key.
+// It returns the decrypted file bytes or nil and an error if the file doesn't exist or if any decryption operation fails.
+func DecryptFromFile(path, key string) ([]byte, error) {
+	f := flo.File(path)
+	if !f.Exists() {
+		return nil, errors.Newf("can't decrypt, file '%s' does not exist", f.Path())
+	}
+	cipher, err := newKeyCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.decrypt(f.AsBytes())
 }

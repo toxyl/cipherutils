@@ -29,20 +29,18 @@ func Test_test(t *testing.T) {
 				t.Logf("encrypt/decrypt succesful: %v (%s - %s)\n", tt.name, d, e)
 			}
 
-			raw := flo.File(tt.file).AsString()
-
-			if err := EncryptFile(tt.file, tt.key); err != nil {
+			if err := EncryptToFile([]byte(tt.text), tt.file, tt.key); err != nil {
 				t.Errorf("could not encrypt file: %s\n", err)
 			}
 			encrypted := flo.File(tt.file).AsString()
 
-			if err := DecryptFile(tt.file, tt.key); err != nil {
+			decrypted, err := DecryptFromFile(tt.file, tt.key)
+			if err != nil {
 				t.Errorf("could not decrypt file: %s\n", err)
 			}
-			decrypted := flo.File(tt.file).AsString()
-
-			if decrypted != raw {
-				t.Errorf("decryption failed, expected %s but got (%s - %s)\n", raw, decrypted, encrypted)
+			_ = flo.File(tt.file).Remove()
+			if string(decrypted) != tt.text {
+				t.Errorf("decryption failed, expected %s but got (%s - %s)\n", tt.text, decrypted, encrypted)
 			} else {
 				t.Logf("encrypt/decrypt file succesful: %v (%s - %s)\n", tt.name, decrypted, encrypted)
 			}
